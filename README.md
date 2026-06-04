@@ -13,14 +13,14 @@ No assumptions. No compromises. Just pure, unfiltered portability.
 Depending on the environment it's compiled for, **hello-world++** will:
 
 1. Use `std::cout` if a terminal is available.
-2. Pop up a GUI message box on Windows.
+2. Pop up a GUI message box on Windows (returns error code on failure).
 3. Transmit over UART/serial on embedded targets (AVR, STM32, ARM Cortex-M, etc.).
-4. Write to `output.txt` if a file system exists but no display.
-5. Write directly to VGA text-mode memory (`0xB8000`) on bare-metal x86.
-6. Trigger a software interrupt (`int3`, `bkpt`, `ebreak`) to pass the string to any attached debugger.
-7. Spin forever with a `volatile` string if absolutely nothing else is possible, so a debugger can still find it.
+4. Write to `output.txt` if a file system exists but no display (returns error codes for file open/write failures).
+5. Write directly to VGA text-mode memory (`0xB8000`) on bare-metal x86 (excluding macOS).
+6. Trigger a software interrupt (`int3`, `bkpt`, `ebreak`) to pass the string to any attached debugger, with a `volatile` fallback and compiler barriers that prevent the string from being optimized away. On freestanding Linux x86, it first attempts an `int $0x80` syscall before falling back to a breakpoint.
+7. Spin forever with a `volatile` string and memory barriers if absolutely nothing else is possible, so a debugger can always find it.
 
-It does all this automatically at compile time using preprocessor feature detection, template-free SFINAE vibes, and pure stubbornness.
+All decisions are made at compile time through preprocessor feature detection — zero runtime overhead on unused paths.
 
 ---
 
@@ -73,7 +73,7 @@ No Makefile? No problem. The code itself adapts.
 
 - **Best case:** an OS with `std::cout` or a file system.
 - **Worst case:** a CPU, some RAM, and a debug probe. No peripherals required.
-- **Absolute worst case:** a CPU that can execute a loop and a memory viewer. You can still extract the string.
+- **Absolute worst case:** a CPU that can execute a loop and a memory viewer. You can still extract the string because compiler barriers keep it alive in the binary.
 
 If your target has *none* of these, congratulations: you have found a platform that does not support C++, and we salute your archaeological discovery.
 
@@ -90,11 +90,24 @@ If your target has *none* of these, congratulations: you have found a platform t
 
 ---
 
+## Error Handling & Return Codes
+
+When a fallback path can fail, the program returns a non-zero exit code to allow detection:
+
+- `1` — could not create `output.txt`
+- `2` — file write error or `ferror` set
+- `3` — `MessageBoxA` failed to display
+
+On paths that cannot report failure (bare metal, interrupts, fallback infinite loop), the string is **always** present in the binary or memory for an external observer.
+
+---
+
 ## Project Philosophy
 
 - Zero runtime overhead on platforms that don't need it.
 - No external dependencies — not even `std::cout` is assumed.
 - Self-contained detection logic that outsmarts most build systems.
+- Compiler barriers that prevent the string from being optimized away, even in dead-code or infinite-loop scenarios.
 - A love letter to portability disguised as a ridiculous C++ file.
 
 ---
@@ -111,7 +124,7 @@ If your target has *none* of these, congratulations: you have found a platform t
 A: If your brick has an MCU, a C++ compiler, and a way to inspect memory, then yes.
 
 **Q: I compiled it and nothing happened.**  
-A: That means it fell through to a debugger-only path. Attach GDB or check the disassembly — "hello world" is waiting for you.
+A: That means it fell through to a debugger-only path. Attach GDB or check the disassembly — "hello world" is waiting for you. If the program exited quickly, check the return code: a non-zero value indicates an I/O failure on the chosen path.
 
 **Q: Is this a joke?**  
 A: Yes. A completely functional, rigorously tested, compile-time polymorphic joke.
