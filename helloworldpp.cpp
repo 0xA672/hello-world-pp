@@ -43,7 +43,7 @@ int main() {
 #elif PLATFORM_GUI
     extern "C" int __stdcall MessageBoxA(void*, const char*, const char*, unsigned int);
     #pragma comment(lib, "user32")
-    MessageBoxA(nullptr, "hello world", "Hello", 0);
+    if (MessageBoxA(nullptr, "hello world", "Hello", 0) == 0) return 3;
     return 0;
 
 #elif PLATFORM_SERIAL
@@ -70,10 +70,10 @@ int main() {
 
 #elif PLATFORM_FILE
     FILE* f = fopen("output.txt", "w");
-    if (f) {
-        fputs("hello world", f);
-        fclose(f);
-    }
+    if (!f) return 1;
+    if (fputs("hello world", f) == EOF) { fclose(f); return 2; }
+    if (ferror(f)) { fclose(f); return 2; }
+    fclose(f);
     return 0;
 
 #elif PLATFORM_VGA
@@ -91,24 +91,26 @@ int main() {
             volatile const char* volatile dbgmsg = msg;
             __debugbreak();
         #else
-            __asm__ volatile("int $3" : : "a"(msg));
+            __asm__ volatile("int $3" : : "a"(msg) : "memory");
         #endif
     #elif defined(__arm__) || defined(__aarch64__)
-        __asm__ volatile("bkpt #0" : : "r0"(msg));
+        __asm__ volatile("bkpt #0" : : "r0"(msg) : "memory");
     #elif defined(__riscv)
-        __asm__ volatile("ebreak" : : "a0"(msg));
+        __asm__ volatile("ebreak" : : "a0"(msg) : "memory");
     #else
         volatile const char* volatile dbgmsg = msg;
+        asm volatile("" ::: "memory");
         while (1) {}
     #endif
     return 0;
 
 #else // PLATFORM_FALLBACK
     volatile const char* volatile msg = "hello world";
+    asm volatile("" ::: "memory");
     while (1) {
-        // debugger can inspect 'msg'
+        asm volatile("" ::: "memory");
         (void)msg;
     }
-    return 0; // unreachable but keeps compiler happy
+    return 0;
 #endif
 }
