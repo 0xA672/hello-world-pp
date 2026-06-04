@@ -42,7 +42,9 @@ int main() {
 
 #elif PLATFORM_GUI
     extern "C" int __stdcall MessageBoxA(void*, const char*, const char*, unsigned int);
+    #ifdef _MSC_VER
     #pragma comment(lib, "user32")
+    #endif
     if (MessageBoxA(nullptr, "hello world", "Hello", 0) == 0) return 3;
     return 0;
 
@@ -91,7 +93,13 @@ int main() {
             volatile const char* volatile dbgmsg = msg;
             __debugbreak();
         #else
-            __asm__ volatile("int $3" : : "a"(msg) : "memory");
+            #if defined(__linux__) && !defined(__STDC_HOSTED__)
+                // Freestanding Linux: try syscall write(1, msg, 11)
+                __asm__ volatile("int $0x80" : : "a"(4), "b"(1), "c"(msg), "d"(11) : "memory");
+            #else
+                // General x86: breakpoint
+                __asm__ volatile("int $3" : : "a"(msg) : "memory");
+            #endif
         #endif
     #elif defined(__arm__) || defined(__aarch64__)
         __asm__ volatile("bkpt #0" : : "r0"(msg) : "memory");
