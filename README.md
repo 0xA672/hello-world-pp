@@ -14,10 +14,10 @@ Depending on the environment it's compiled for, **hello-world++** will:
 
 1. Use `std::cout` if a terminal is available.
 2. Pop up a GUI message box on Windows (returns error code on failure).
-3. Transmit over UART/serial on embedded targets (AVR, STM32, ARM Cortex-M, etc.).
+3. Transmit over UART/serial on embedded targets (AVR, STM32, ARM Cortex-M, etc.) — automatically detected via common compiler/CMSIS macros.
 4. Write to `output.txt` if a file system exists but no display (returns error codes for file open/write failures).
-5. Write directly to VGA text-mode memory (`0xB8000`) on bare-metal x86 (excluding macOS).
-6. Trigger a software interrupt (`int3`, `bkpt`, `ebreak`) to pass the string to any attached debugger, with a `volatile` fallback and compiler barriers that prevent the string from being optimized away. On freestanding Linux x86, it first attempts an `int $0x80` syscall before falling back to a breakpoint.
+5. Write directly to VGA text-mode memory (`0xB8000`) on bare-metal x86, excluding UEFI environments.
+6. Trigger a software interrupt (`int3`, `bkpt`, `ebreak`) to pass the string to any attached debugger, with a `volatile` fallback and compiler barriers that prevent the string from being optimized away. On freestanding Linux x86 it first tries a syscall (using `syscall` for 64-bit, `int $0x80` for 32-bit) before falling back to a breakpoint.
 7. Spin forever with a `volatile` string and memory barriers if absolutely nothing else is possible, so a debugger can always find it.
 
 All decisions are made at compile time through preprocessor feature detection — zero runtime overhead on unused paths.
@@ -38,11 +38,11 @@ If a C++ compiler can target it, `hello-world++` will greet it.
 
 ## Supported Architectures
 
-- x86 / x86_64 (Linux, Windows, bare metal, UEFI with limitations)
+- x86 / x86_64 (Linux, Windows, bare metal; UEFI routes to interrupt/debug path)
 - ARM / AArch64 (Cortex-M, Cortex-A, bare-metal or Linux)
 - RISC-V (32-bit and 64-bit)
-- AVR (ATmega, ATtiny, etc.)
-- STM32F1 / STM32F4 (and similar Cortex-M with user-defined `UART_BASE`)
+- AVR (ATmega328P, ATmega2560, and others via `__AVR_ARCH__`)
+- STM32F1 / STM32F4 (detected via `STM32F103xE`, `STM32F407xx`, or user-defined `-DSTM32F1`/`-DSTM32F4`)
 - Fallback for everything else — as long as you have a debugger, you're good.
 
 ---
