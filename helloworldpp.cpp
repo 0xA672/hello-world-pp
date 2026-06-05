@@ -23,11 +23,14 @@
 #define PLATFORM_STDOUT 1
 #elif defined(_WIN32) && defined(_WINDOWS)
 #define PLATFORM_GUI 1
-#elif defined(__AVR__) || defined(__AVR_ARCH__) || defined(STM32F1) || defined(STM32F4) || (defined(__ARM_ARCH) && !defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__) && !defined(__unix__))
+#elif defined(__AVR__) || defined(__AVR_ARCH__) || defined(STM32F1) || defined(STM32F4) \
+   || defined(STM32F103xE) || defined(STM32F407xx) \
+   || defined(__AVR_ATmega328P__) || defined(__AVR_ATmega2560__) \
+   || (defined(__ARM_ARCH) && !defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__) && !defined(__unix__))
 #define PLATFORM_SERIAL 1
 #elif defined(__STDC_HOSTED__) && __STDC_HOSTED__ == 1
 #define PLATFORM_FILE 1
-#elif (defined(__i386__) || defined(__x86_64__)) && !defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__) && !defined(__unix__)
+#elif (defined(__i386__) || defined(__x86_64__)) && !defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__) && !defined(__unix__) && !defined(__UEFI__) && !defined(EFI)
 #define PLATFORM_VGA 1
 #elif defined(__arm__) || defined(__aarch64__) || defined(__riscv) || defined(__i386__) || defined(__x86_64__)
 #define PLATFORM_INTERRUPT 1
@@ -53,10 +56,10 @@ int main() {
     #if defined(__AVR__) || defined(__AVR_ARCH__)
         volatile uint8_t* udr = (volatile uint8_t*)0xC6;
         for (; *msg; ++msg) { *udr = *msg; }
-    #elif defined(STM32F1)
+    #elif defined(STM32F1) || defined(STM32F103xE)
         volatile uint32_t* usart_dr = (volatile uint32_t*)0x40013804;
         for (; *msg; ++msg) { *usart_dr = *msg; }
-    #elif defined(STM32F4)
+    #elif defined(STM32F4) || defined(STM32F407xx)
         volatile uint32_t* usart_dr = (volatile uint32_t*)0x40011004;
         for (; *msg; ++msg) { *usart_dr = *msg; }
     #else
@@ -94,10 +97,12 @@ int main() {
             __debugbreak();
         #else
             #if defined(__linux__) && !defined(__STDC_HOSTED__)
-                // Freestanding Linux: try syscall write(1, msg, 11)
-                __asm__ volatile("int $0x80" : : "a"(4), "b"(1), "c"(msg), "d"(11) : "memory");
+                #if defined(__x86_64__)
+                    __asm__ volatile("syscall" : : "a"(1), "D"(1), "S"(msg), "d"(11) : "rcx", "r11", "memory");
+                #else
+                    __asm__ volatile("int $0x80" : : "a"(4), "b"(1), "c"(msg), "d"(11) : "memory");
+                #endif
             #else
-                // General x86: breakpoint
                 __asm__ volatile("int $3" : : "a"(msg) : "memory");
             #endif
         #endif
